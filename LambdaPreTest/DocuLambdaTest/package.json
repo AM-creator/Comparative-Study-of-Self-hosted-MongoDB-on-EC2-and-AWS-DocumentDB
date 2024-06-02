@@ -1,0 +1,17 @@
+{
+  "name": "doculambda",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "perf_hooks": "^0.0.1",
+    "stream": "^0.0.2",
+    "mongodb": "^6.6.2"
+  }
+}

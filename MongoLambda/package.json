@@ -1,0 +1,9 @@
+{
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "mongodb": "^6.6.2",
+    "stream": "^0.0.2",
+    "uuid": "^3.0.1"
+  }
+}

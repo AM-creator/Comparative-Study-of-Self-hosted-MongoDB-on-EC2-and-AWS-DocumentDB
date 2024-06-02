@@ -28,25 +28,46 @@ export const handler = async (event, context) => {
 
     const objectKeys = objectKeysCsvData.split("\n");
 
-    // Split the object keys into batches of 1000
+    // Split the object keys into tempBatches of 1000
     const batches = [];
+    const tempBatches = [];
     let batch = [];
 
     for (const key of objectKeys) {
       batch.push(key);
 
       if (batch.length === 1000) {
-        batches.push(batch);
+        tempBatches.push(batch);
         batch = [];
       }
     }
 
     // Add the last batch if it's not empty
     if (batch.length > 0) {
-      batches.push(batch);
+      tempBatches.push(batch);
     }
 
-    console.log("Number of batches: " + batches.length);
+    for (let i = 1; i <= 10; i++) {
+      batches.push({
+        s3KeyBatch: tempBatches[0],
+
+        experimentNumber: i,
+
+        batchNumber: 1,
+      });
+    }
+
+    for (let i = 1; i <= 10; i++) {
+      batches.push({
+        s3KeyBatch: tempBatches[1],
+
+        experimentNumber: i,
+
+        batchNumber: 2,
+      });
+    }
+
+    console.log("Number of Batches: " + batches.length);
 
     return {
       statusCode: 200,

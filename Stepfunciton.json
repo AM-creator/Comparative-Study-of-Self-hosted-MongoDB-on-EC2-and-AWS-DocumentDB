@@ -18,24 +18,14 @@
           "Run MongoDB Lambda": {
             "Type": "Task",
             "Resource": "arn:aws:lambda:us-east-2:ACCOUNT_ID:function:MongoDBLambda",
-            "InputPath": "$.s3KeyBatch",
-            "ParameterPayload": {
-              "s3KeyBatch.$": "$.s3KeyBatch",
-              "experimentNumber.$": "$.experimentNumber",
-              "batchNumber.$": "$.batchNumber"
-            },
+            "InputPath": "$",
             "ResultPath": "$.mongoDBResult",
             "Next": "Run DocumentDB Lambda"
           },
           "Run DocumentDB Lambda": {
             "Type": "Task",
             "Resource": "arn:aws:lambda:us-east-2:ACCOUNT_ID:function:DocumentDBLambda",
-            "InputPath": "$.s3KeyBatch",
-            "ParameterPayload": {
-              "s3KeyBatch.$": "$.s3KeyBatch",
-              "experimentNumber.$": "$.experimentNumber",
-              "batchNumber.$": "$.batchNumber"
-            },
+            "InputPath": "$",
             "ResultPath": "$.documentDBResult",
             "End": true
           }

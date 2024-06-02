@@ -42,7 +42,7 @@ export const handler = async (event, context) => {
       }
     }
 
-    // Add the last batch if it's not empty
+
     if (batch.length > 0) {
       tempBatches.push(batch);
     }

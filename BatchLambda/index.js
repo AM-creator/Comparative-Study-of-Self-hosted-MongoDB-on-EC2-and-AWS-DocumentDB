@@ -1,11 +1,10 @@
-import { S3Client } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 
 export const handler = async (event, context) => {
   try {
     // Create an S3 instance
     const s3 = new S3Client({ region: "us-east-2" });
-
     const s3BucketName = process.env.S3_BUCKET_NAME;
     const objectKeysCsv = "object-keys.csv";
 
@@ -14,9 +13,7 @@ export const handler = async (event, context) => {
       Bucket: s3BucketName,
       Key: objectKeysCsv,
     };
-
     let objectKeysCsvData = "";
-
     try {
       const getObjectCommand = new GetObjectCommand(getObjectParams);
       const getObjectResponse = await s3.send(getObjectCommand);
@@ -27,51 +24,46 @@ export const handler = async (event, context) => {
     }
 
     const objectKeys = objectKeysCsvData.split("\n");
-
-    // Split the object keys into tempBatches of 1000
+    // Split the object keys into batches of 1000
     const batches = [];
-    const tempBatches = [];
     let batch = [];
-
     for (const key of objectKeys) {
       batch.push(key);
-
       if (batch.length === 1000) {
-        tempBatches.push(batch);
+        batches.push(batch);
         batch = [];
       }
     }
-
-
+    // Add the last batch if it's not empty
     if (batch.length > 0) {
-      tempBatches.push(batch);
+      batches.push(batch);
     }
 
-    for (let i = 1; i <= 10; i++) {
-      batches.push({
-        s3KeyBatch: tempBatches[0],
+    console.log("Number of batches: " + batches.length);
 
-        experimentNumber: i,
+    // Store the first batch in a CSV file named "batch1.csv"
+    const batch1CsvData = batches[0].join("\n");
+    const uploadParams1 = {
+      Bucket: s3BucketName,
+      Key: "batch1.csv",
+      Body: batch1CsvData,
+    };
+    const putObjectCommand1 = new PutObjectCommand(uploadParams1);
+    await s3.send(putObjectCommand1);
 
-        batchNumber: 1,
-      });
-    }
-
-    for (let i = 1; i <= 10; i++) {
-      batches.push({
-        s3KeyBatch: tempBatches[1],
-
-        experimentNumber: i,
-
-        batchNumber: 2,
-      });
-    }
-
-    console.log("Number of Batches: " + batches.length);
+    // Store the second batch in a CSV file named "batch2.csv"
+    const batch2CsvData = batches[1] ? batches[1].join("\n") : "";
+    const uploadParams2 = {
+      Bucket: s3BucketName,
+      Key: "batch2.csv",
+      Body: batch2CsvData,
+    };
+    const putObjectCommand2 = new PutObjectCommand(uploadParams2);
+    await s3.send(putObjectCommand2);
 
     return {
       statusCode: 200,
-      body: JSON.stringify(batches),
+      body: JSON.stringify({ message: "Batches stored successfully" }),
     };
   } catch (err) {
     console.error("Error:", err);

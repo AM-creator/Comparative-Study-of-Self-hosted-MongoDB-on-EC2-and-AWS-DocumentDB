@@ -1,50 +1,46 @@
+import { MongoClient } from "mongodb";
 import {
   S3Client,
   GetObjectCommand,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { Readable } from "stream";
-import { MongoClient } from "mongodb";
 import { performance } from "perf_hooks";
 
 export const handler = async (event, context) => {
-  try
-  { const startTime = performance.now();    
-    // Create an S3 instance
+  try {
+    const startTime = performance.now();
     const s3Client = new S3Client({ region: "us-east-2" });
-    const s3BucketName = process.env.S3_BUCKET_NAME;
+    const s3BucketName = event.s3BucketName;
     const csvFileName = `mongodb-metrics.csv`;
+    const batchNumber = event.batchNumber;
+    const experimentNumber = event.experimentNumber;
 
     // Connect to MongoDB
     const client = await MongoClient.connect(process.env.MONGODB_URI);
     const db = client.db();
     console.log("Connected to MongoDB");
 
-    // Create a collection for the video data
     const videoChunks = db.collection("VideoChunk");
 
-    // Get the S3 key batch, experiment number, and batch number from the event input
-    const s3KeyBatch = event.s3KeyBatch || [];
-    const experimentNumber = event.experimentNumber || 0;
-    const batchNumber = event.batchNumber || 0;
+    const objectKeys = await readObjectKeysFromS3(
+      s3Client,
+      s3BucketName,
+      event.objectKeysCsv
+    );
 
-    // Initialize metrics
-   
     let totalDataSize = 0;
     let requestCount = 0;
     let totalRequestLatency = 0;
 
-    // Process the S3 keys and insert data into MongoDB
-    for (const objectKey of s3KeyBatch) {
+    for (const objectKey of objectKeys) {
       try {
-        // Fetch the object data from S3
         const getObjectCommand = new GetObjectCommand({
           Bucket: s3BucketName,
           Key: objectKey,
         });
         const objectData = await s3Client.send(getObjectCommand);
 
-        // Convert the ReadableStream to a Buffer
         const chunks = [];
         const readableStream = objectData.Body;
         if (readableStream instanceof Readable) {
@@ -55,7 +51,6 @@ export const handler = async (event, context) => {
         const buffer = Buffer.concat(chunks);
         totalDataSize += buffer.length;
 
-        // Insert the data into MongoDB
         const startRequestTime = performance.now();
         const insertResult = await videoChunks.insertOne({
           chunkId: objectKey,
@@ -77,22 +72,26 @@ export const handler = async (event, context) => {
     }
 
     const endTime = performance.now();
-    const totalTime = (endTime - startTime) / 1000;     
+    const totalTime = (endTime - startTime) / 1000;
 
-   console.log(`Experiment ${experimentNumber}-${batchNumber} - MongoDB:`);
+    console.log(
+      `Experiment ${experimentNumber}, Batch ${batchNumber} - MongoDB:`
+    );
     console.log(`Process Total time: ${totalTime.toFixed(2)} seconds`);
-    console.log(`Total data size: ${(totalDataSize / (1024 * 1024 * 1024)).toFixed(2)} GB`); 
+    console.log(
+      `Total data size: ${(totalDataSize / (1024 * 1024 * 1024)).toFixed(2)} GB`
+    );
     console.log(`Request count: ${requestCount}`);
-    console.log(`Total request latency: ${ totalRequestLatency} ms`);
+    console.log(`Total request latency: ${totalRequestLatency} ms`);
 
     // Export metrics to CSV on S3
     const csvData = `${experimentNumber},${batchNumber},${totalTime.toFixed(
       2
-    )},${(totalDataSize / (1024 * 1024 * 1024)).toFixed(2)},${requestCount},${totalRequestLatency.toFixed(
+    )},${(totalDataSize / (1024 * 1024 * 1024)).toFixed(
       2
-    )}\n`;
+    )},${requestCount},${totalRequestLatency.toFixed(2)}\n`;
 
-    // Get the existing CSV data from S3  
+    // Get the existing CSV data from S3
     const getObjectParams = {
       Bucket: s3BucketName,
       Key: csvFileName,
@@ -124,18 +123,7 @@ export const handler = async (event, context) => {
 
     console.log(`Metrics exported to s3://${s3BucketName}/${csvFileName}`);
 
-    // Close the MongoDB connection
     await client.close();
-
-     return {
-      statusCode: 200,
-      body: JSON.stringify({
-        totalTime: totalTime.toFixed(2),
-        totalDataSize: (totalDataSize / (1024 * 1024 * 1024)).toFixed(2),
-        requestCount,
-        totalRequestLatency: totalRequestLatency.toFixed(2),             
-      }),
-    };    
   } catch (err) {
     console.error("Error:", err);
     return {
@@ -144,3 +132,20 @@ export const handler = async (event, context) => {
     };
   }
 };
+
+async function readObjectKeysFromS3(s3Client, s3BucketName, objectKeysCsv) {
+  const getObjectParams = {
+    Bucket: s3BucketName,
+    Key: objectKeysCsv,
+  };
+
+  try {
+    const getObjectCommand = new GetObjectCommand(getObjectParams);
+    const getObjectResponse = await s3Client.send(getObjectCommand);
+    const objectKeysCsvData = await getObjectResponse.Body.transformToString();
+    return objectKeysCsvData.split("\n");
+  } catch (err) {
+    console.error(`Error reading ${objectKeysCsv} from S3:`, err);
+    throw err;
+  }
+}
